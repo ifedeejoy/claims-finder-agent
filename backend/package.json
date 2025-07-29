@@ -1,0 +1,39 @@
+{
+  "name": "claim-finder-backend",
+  "version": "1.0.0",
+  "description": "Backend service for running legal claim collectors",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server-simple.ts",
+    "build": "tsc",
+    "start": "node dist/server-simple.js",
+    "start:prod": "NODE_ENV=production node dist/server-simple.js",
+    "test": "tsx src/test-collectors.ts",
+    "setup": "bash setup.sh"
+  },
+  "dependencies": {
+    "@bull-board/api": "^5.14.0",
+    "@bull-board/express": "^5.14.0",
+    "@google/generative-ai": "^0.21.0",
+    "@supabase/supabase-js": "^2.39.7",
+    "bull": "^4.12.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "exa-js": "^1.0.14",
+    "express": "^4.18.2",
+    "node-cron": "^3.0.3",
+    "playwright": "^1.41.2",
+    "redis": "^4.6.13",
+    "winston": "^3.11.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/bull": "^4.10.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.16",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

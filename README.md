@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Legal Opportunity Monitor
 
-## Getting Started
+A web application that automatically monitors legal information sources to identify potential opportunities for U.S. consumers - class action settlements, consumer refunds, and enforcement actions.
 
-First, run the development server:
+## Architecture
 
+The system consists of two parts:
+
+### Frontend (Next.js)
+- User interface for browsing discovered opportunities
+- Built with Next.js, TypeScript, and Tailwind CSS
+- Real-time updates via Supabase integration
+- Deployed on Vercel
+
+### Backend Service
+- Standalone Node.js service for long-running data collection
+- Avoids serverless timeout limitations
+- Processes multiple sources concurrently
+- Deployed separately (Railway, VPS, etc.)
+
+## Data Sources
+
+- **SEC EDGAR**: Corporate filings and settlement announcements
+- **FTC**: Press releases and enforcement actions  
+- **Web Search**: Legal news sites and class action databases
+- **Class Action Sites**: TopClassActions, ClassAction.org, etc.
+
+## Key Features
+
+- **Automated Discovery**: Continuously monitors sources for new opportunities
+- **Smart Extraction**: Extracts structured data (deadlines, payouts, eligibility)
+- **Duplicate Detection**: Prevents reprocessing of existing cases
+- **Quality Assessment**: Evaluates opportunity value and legitimacy
+- **Real-time Updates**: Live database updates for immediate visibility
+
+## Technical Stack
+
+- **Frontend**: Next.js, TypeScript, Tailwind CSS
+- **Backend**: Node.js, Express, Bull queues
+- **Database**: PostgreSQL (Supabase)
+- **AI Services**: Google Gemini for content extraction, Exa for search
+- **Web Scraping**: Playwright for complex sites, traditional scraping for APIs
+- **Deployment**: Vercel (frontend) + Railway/VPS (backend)
+
+## Development
+
+### Frontend Setup
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+# Install dependencies
+pnpm install
+
+# Configure environment (.env.local)
+NEXT_PUBLIC_SUPABASE_URL=your_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_key
+
+# Run development server
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Backend Setup
+```bash
+cd backend
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# Setup backend files
+npm run setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Configure environment (.env)
+PORT=3001
+GEMINI_API_KEY=your_key
+EXA_API_KEY=your_key
+# ... other vars
 
-## Learn More
+# Run backend service
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Database Schema
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **sources**: Monitored data sources (URLs, last check times, config)
+- **cases**: Discovered legal opportunities (title, description, deadlines, eligibility)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The system tracks performance metrics and optimizes collection strategies based on success rates.
 
-## Deploy on Vercel
+## How It Works
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Collection Orchestration**: Backend service runs collectors on schedule
+2. **Content Processing**: Gemini extracts structured data from raw content
+3. **Quality Control**: Multi-layer duplicate detection and quality assessment
+4. **Database Storage**: Cases stored with metadata for frontend display
+5. **User Interface**: Frontend displays opportunities with filtering and search
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The system is designed to run autonomously with minimal maintenance while providing valuable opportunities to users.

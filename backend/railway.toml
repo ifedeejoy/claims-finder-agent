@@ -1,0 +1,47 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "npm run start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[nixpacks]
+providers = ["node", "npm"]
+node = "20.x"
+
+[nixpacks.phases.install]
+cmds = ["npm install --production=false"]
+
+[nixpacks.phases.build]
+cmds = ["npm run build"]
+
+[[services]]
+name = "claim-finder-backend"
+type = "web"
+port = 3001
+
+[[services.env]]
+name = "NODE_ENV"
+value = "production"
+
+[[services.env]]
+name = "PORT"
+value = "3001"
+
+# AI-guided orchestrator configuration
+[[services.env]]
+name = "AI_ORCHESTRATION_ENABLED"
+value = "true"
+
+[[services.env]]
+name = "COLLECTION_STRATEGY"
+value = "targeted"
+
+# Rate limiting for external APIs
+[[services.env]]
+name = "RATE_LIMIT_DELAY_MS"
+value = "1000" 

@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: claim-finder-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: EXA_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: ENABLE_CRON
+        value: true 

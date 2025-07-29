@@ -6,22 +6,47 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "collect:all": "tsx scripts/collectors/run-all.ts",
+    "collect:exa": "tsx scripts/collectors/run-exa.ts",
+    "collect:ftc": "tsx scripts/collectors/run-ftc.ts",
+    "collect:sec": "tsx scripts/collectors/run-sec.ts",
+    "test:local": "tsx scripts/test-local.ts",
+    "test:collectors": "tsx scripts/test-collectors.ts",
+    "test:orchestrator": "tsx scripts/test-orchestrator.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@heroicons/react": "^2.2.0",
+    "@playwright/test": "^1.54.1",
+    "@supabase/supabase-js": "^2.53.0",
+    "cheerio": "^1.1.2",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.2.1",
+    "exa-js": "^1.8.23",
+    "html-to-text": "^9.0.5",
+    "next": "15.4.4",
+    "node-cron": "^4.2.1",
+    "playwright": "^1.54.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.4.4"
+    "tailwind-merge": "^2.6.0",
+    "zod": "^4.0.10"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/cheerio": "^1.0.0",
+    "@types/html-to-text": "^9.0.4",
     "@types/node": "^20",
+    "@types/node-cron": "^3.0.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.4.4",
-    "@eslint/eslintrc": "^3"
+    "tailwindcss": "^4",
+    "tsx": "^4.20.3",
+    "typescript": "^5"
   }
 }

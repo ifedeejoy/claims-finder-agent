@@ -1,0 +1,25 @@
+{
+  "functions": {
+    "app/api/collectors/run/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cases/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/collectors/run",
+      "schedule": "0 */4 * * *"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key",
+    "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_key",
+    "GEMINI_API_KEY": "@gemini_api_key",
+    "EXA_API_KEY": "@exa_api_key"
+  },
+  "regions": ["iad1"],
+  "framework": "nextjs"
+}
