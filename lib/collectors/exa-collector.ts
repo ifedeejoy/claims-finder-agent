@@ -1,5 +1,5 @@
 import { BaseCollector } from './base-collector'
-import { exaService, ExaService } from '@/lib/ai/exa'
+import { exaService, getDefaultConfigs } from '@/lib/ai/exa'
 import type { CollectorResult, ExaCollectorConfig } from '@/types'
 import { CollectorError } from '@/types'
 
@@ -10,7 +10,7 @@ export class ExaCollector extends BaseCollector {
     super('Exa Web Search', 'exa')
 
     // Merge default config with provided config
-    const defaultConfig = ExaService.getDefaultConfigs()
+    const defaultConfig = getDefaultConfigs()
     this.config = {
       queries: [
         ...defaultConfig.classAction.queries,
@@ -44,8 +44,8 @@ export class ExaCollector extends BaseCollector {
       // Get or create source
       const sourceId = await this.getOrCreateSource()
 
-      // Search for legal opportunities with enhanced pagination
-      const searchResults = await exaService.searchLegalOpportunities(this.config)
+      // Search for legal opportunities - use classAction category as default
+      const searchResults = await exaService.searchLegalOpportunities('classAction')
       casesFound = searchResults.length
 
       this.log(`Found ${casesFound} potential legal opportunities`, 'info')
@@ -53,7 +53,11 @@ export class ExaCollector extends BaseCollector {
       // Process each result
       for (const result of searchResults) {
         try {
-          await this.processSearchResult(result, sourceId)
+          await this.processSearchResult({
+            url: result.url,
+            title: (result.metadata.title as string) || 'Untitled',
+            content: result.content
+          }, sourceId)
           casesProcessed++
 
           // Rate limiting between processing
@@ -149,7 +153,11 @@ export class ExaCollector extends BaseCollector {
 
       for (const result of searchResults) {
         try {
-          await this.processSearchResult(result, sourceId)
+          await this.processSearchResult({
+            url: result.url,
+            title: result.title,
+            content: result.text || ''
+          }, sourceId)
           casesProcessed++
           await this.delay(1000) // Longer delay for domain-specific searches
         } catch (error) {

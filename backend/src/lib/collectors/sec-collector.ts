@@ -92,7 +92,7 @@ export class SecCollector extends BaseCollector {
   ]
 
   constructor() {
-    super('SEC EDGAR Filings', 'sec')
+    super('SEC EDGAR Filings')
   }
 
   async collect(): Promise<CollectorResult> {
@@ -104,7 +104,12 @@ export class SecCollector extends BaseCollector {
     try {
       this.log('Starting SEC collection', 'info')
 
-      const sourceId = await this.getOrCreateSource(this.baseUrl)
+      // Get or create source
+      const sourceId = await this.getOrCreateSource(
+        this.sourceName,
+        'sec',
+        this.baseUrl
+      )
 
       // Process each target company
       for (const cik of this.targetCompanies) {
@@ -193,7 +198,7 @@ export class SecCollector extends BaseCollector {
         )
       }
 
-      return await response.json()
+      return await response.json() as SecCompanyData
     } catch (error) {
       throw new CollectorError(
         `Company data fetch failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -293,11 +298,11 @@ export class SecCollector extends BaseCollector {
       // Clean content
       const cleanedContent = this.cleanSecContent(content)
 
-      // Extract case details
-      const extractedCase = await this.processContent(
+      // Use geminiService to extract case details
+      const { geminiService } = await import('@/lib/ai/gemini')
+      const extractedCase = await geminiService.extractCaseDetails(
         cleanedContent.substring(0, 10000), // Limit content size for processing
-        filingUrl,
-        sourceId
+        filingUrl
       )
 
       if (!extractedCase) {
@@ -315,10 +320,16 @@ export class SecCollector extends BaseCollector {
         extractedCase.title = `${companyName} - ${extractedCase.title} (${filing.form})`
       }
 
-      // Save to database
-      await this.saveCase(extractedCase, sourceId, filingUrl)
+      // Process the case using BaseCollector's processCase method
+      const processed = await this.processCase(
+        extractedCase,
+        'sec',
+        filingUrl
+      )
 
-      this.log(`Successfully processed SEC case: ${extractedCase.title}`, 'info')
+      if (processed) {
+        this.log(`Successfully processed SEC case: ${extractedCase.title}`, 'info')
+      }
 
     } catch (error) {
       throw new CollectorError(
@@ -401,5 +412,10 @@ export class SecCollector extends BaseCollector {
       .replace(/\n{3,}/g, '\n\n') // Limit consecutive newlines
       .replace(/[^\w\s.,;:!?()$%-]/g, '') // Keep currency symbols and percentages
       .trim()
+  }
+
+  // Helper methods
+  protected async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
   }
 }

@@ -12,6 +12,7 @@ import { agenticOrchestrator } from './lib/ai/agentic-orchestrator'
 import { ExaCollector } from './lib/collectors/exa-collector'
 import { FtcCollector } from './lib/collectors/ftc-collector'
 import { SecCollector } from './lib/collectors/sec-collector'
+import collectorRoutes from './routes/collectors'
 import type { CollectorResult } from './types'
 
 const app = express()
@@ -31,6 +32,9 @@ const collectorQueue = process.env.REDIS_URL ?
       password: process.env.REDIS_PASSWORD
     }
   })
+
+// Store queues in app locals IMMEDIATELY after creating them
+app.locals.queues = { collectorQueue }
 
 // Setup Bull Dashboard
 const serverAdapter = new ExpressAdapter()
@@ -120,110 +124,13 @@ collectorQueue.process(async (job) => {
   }
 })
 
-// Routes
-app.post('/api/collectors/run', async (req, res) => {
-  try {
-    const { type = 'all' } = req.body
+// Mount the Bull Dashboard
+app.use('/admin/queues', serverAdapter.getRouter())
 
-    const job = await collectorQueue.add({
-      type,
-      startedAt: new Date().toISOString()
-    }, {
-      removeOnComplete: false,
-      removeOnFail: false
-    })
+// Mount collector routes - app.locals.queues is already set above
+app.use('/api/collectors', collectorRoutes)
 
-    logger.info(`Created collector job: ${type}`, { jobId: job.id })
-
-    res.json({
-      success: true,
-      data: {
-        jobId: job.id,
-        message: `Collector job ${type} started`,
-        status: 'pending'
-      }
-    })
-  } catch (error) {
-    logger.error('Failed to create job:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create job'
-    })
-  }
-})
-
-app.get('/api/collectors/jobs/:jobId', async (req, res) => {
-  try {
-    const job = await collectorQueue.getJob(req.params.jobId)
-
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        error: 'Job not found'
-      })
-    }
-
-    const state = await job.getState()
-    const progress = job.progress()
-
-    res.json({
-      success: true,
-      data: {
-        id: job.id,
-        type: job.data.type,
-        status: state,
-        progress,
-        startTime: job.timestamp,
-        endTime: job.finishedOn,
-        duration: job.finishedOn && job.timestamp ?
-          (job.finishedOn - job.timestamp) / 1000 :
-          undefined,
-        result: job.returnvalue,
-        error: job.failedReason
-      }
-    })
-  } catch (error) {
-    logger.error('Failed to get job:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get job status'
-    })
-  }
-})
-
-app.get('/api/collectors/jobs', async (req, res) => {
-  try {
-    const jobs = await collectorQueue.getJobs(['completed', 'failed', 'active', 'waiting', 'delayed'], 0, 50)
-
-    const jobsData = await Promise.all(jobs.map(async (job) => {
-      const state = await job.getState()
-      return {
-        id: job.id,
-        type: job.data.type,
-        status: state,
-        startTime: job.timestamp,
-        endTime: job.finishedOn,
-        casesFound: job.returnvalue?.totalCasesFound,
-        casesProcessed: job.returnvalue?.totalCasesProcessed,
-        strategy: job.returnvalue?.strategy,
-        reasoning: job.returnvalue?.reasoning,
-        error: job.failedReason
-      }
-    }))
-
-    res.json({
-      success: true,
-      data: jobsData
-    })
-  } catch (error) {
-    logger.error('Failed to list jobs:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Failed to list jobs'
-    })
-  }
-})
-
+// Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
     // Check Redis connection
@@ -248,15 +155,12 @@ app.get('/api/health', async (req, res) => {
   }
 })
 
-// Bull Dashboard
-app.use('/admin/queues', serverAdapter.getRouter())
-
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error('Unhandled error:', err)
+  logger.error('Server error:', err)
   res.status(500).json({
     success: false,
-    error: 'Internal server error'
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
   })
 })
 

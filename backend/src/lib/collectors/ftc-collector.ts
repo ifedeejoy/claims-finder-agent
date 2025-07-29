@@ -8,7 +8,7 @@ export class FtcCollector extends BaseCollector {
   private readonly enforcementUrl = 'https://www.ftc.gov/legal-library/browse/cases-proceedings'
 
   constructor() {
-    super('FTC Press Releases', 'ftc')
+    super('FTC Press Releases')
   }
 
   async collect(): Promise<CollectorResult> {
@@ -20,7 +20,12 @@ export class FtcCollector extends BaseCollector {
     try {
       this.log('Starting FTC collection', 'info')
 
-      const sourceId = await this.getOrCreateSource(this.baseUrl)
+      // Get or create source
+      const sourceId = await this.getOrCreateSource(
+        this.sourceName,
+        'ftc',
+        this.baseUrl
+      )
 
       // Collect from press releases
       const pressReleaseResults = await this.collectPressReleases()
@@ -48,7 +53,7 @@ export class FtcCollector extends BaseCollector {
     }
 
     const duration = Date.now() - startTime
-    
+
     return {
       sourceName: this.sourceName,
       casesFound,
@@ -81,7 +86,7 @@ export class FtcCollector extends BaseCollector {
       // Find press release listings - FTC uses specific selectors
       $('.views-row').each((_, element) => {
         const $element = $(element)
-        
+
         const titleElement = $element.find('.field-title a')
         const dateElement = $element.find('.field-date')
         const summaryElement = $element.find('.field-summary')
@@ -93,8 +98,8 @@ export class FtcCollector extends BaseCollector {
 
         // Only process recent releases with settlement/refund keywords
         if (title && relativeUrl && this.isRelevantRelease(title, summary)) {
-          const fullUrl = relativeUrl.startsWith('http') 
-            ? relativeUrl 
+          const fullUrl = relativeUrl.startsWith('http')
+            ? relativeUrl
             : `${this.baseUrl}${relativeUrl}`
 
           releases.push({
@@ -108,9 +113,9 @@ export class FtcCollector extends BaseCollector {
 
       // Limit to most recent releases
       const recentReleases = releases.slice(0, 20)
-      
+
       this.log(`Found ${recentReleases.length} relevant press releases`, 'info')
-      
+
       return {
         found: recentReleases.length,
         releases: recentReleases
@@ -168,38 +173,33 @@ export class FtcCollector extends BaseCollector {
         content = $('body').text().trim()
       }
 
-      // Clean and validate content
+      // Clean content
       const cleanedContent = this.cleanContent(content)
-      
-      if (cleanedContent.length < 200) {
-        throw new CollectorError(
-          'Press release content too short',
-          this.sourceName,
-          'parsing'
-        )
-      }
 
-      // Extract case details
-      const extractedCase = await this.processContent(
-        cleanedContent,
-        release.url,
-        sourceId
-      )
+      // Use geminiService to extract case details
+      const { geminiService } = await import('@/lib/ai/gemini')
+      const extractedCase = await geminiService.extractCaseDetails(cleanedContent, release.url)
 
       if (!extractedCase) {
-        this.log(`No consumer opportunity found in: ${release.title}`, 'info')
+        this.log(`No legal opportunity found in ${release.url}`, 'info')
         return
       }
 
-      // Use press release URL as claim URL if none extracted
+      // Ensure claim URL is set
       if (!extractedCase.claimUrl) {
         extractedCase.claimUrl = release.url
       }
 
-      // Save to database
-      await this.saveCase(extractedCase, sourceId, release.url)
-      
-      this.log(`Successfully processed FTC case: ${extractedCase.title}`, 'info')
+      // Process the case using BaseCollector's processCase method
+      const processed = await this.processCase(
+        extractedCase,
+        'ftc',
+        release.url
+      )
+
+      if (processed) {
+        this.log(`Successfully processed case: ${extractedCase.title}`, 'info')
+      }
 
     } catch (error) {
       throw new CollectorError(
@@ -228,5 +228,17 @@ export class FtcCollector extends BaseCollector {
 
     const text = (title + ' ' + summary).toLowerCase()
     return keywords.some(keyword => text.includes(keyword))
+  }
+
+  // Helper methods
+  protected async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  protected cleanContent(content: string): string {
+    return content
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .replace(/\n{3,}/g, '\n\n') // Limit consecutive newlines
+      .trim()
   }
 }

@@ -6,12 +6,15 @@ import { logger } from '../lib/logger'
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
 
 export interface CollectorJobData {
-  type: 'exa' | 'sec' | 'ftc' | 'all'
+  type: 'exa' | 'sec' | 'ftc' | 'all' | 'continuous'
   options?: {
     domains?: string[]
     query?: string
     numResults?: number
   }
+  schedule?: string
+  monitoringType?: string
+  timezone?: string
 }
 
 export interface WebhookJobData {

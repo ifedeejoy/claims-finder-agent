@@ -71,8 +71,9 @@ export class ExaService {
           numResults: config.numResults || 50,
           ...(crawlDate && { startCrawlDate: crawlDate }),
           ...(publishedDate && { startPublishedDate: publishedDate }),
-          ...(config.includeDomains && { includeDomains: config.includeDomains }),
-          ...(config.excludeDomains && { excludeDomains: config.excludeDomains }),
+          // Only use includeDomains OR excludeDomains, not both
+          ...(config.includeDomains ? { includeDomains: config.includeDomains } :
+            config.excludeDomains ? { excludeDomains: config.excludeDomains } : {}),
           useAutoprompt: true,
           type: 'auto'
         })

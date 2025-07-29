@@ -39,6 +39,41 @@ export const orchestratorQueryStore = {
   }
 }
 
+// Violation indicators for pattern recognition
+const VIOLATION_INDICATORS = {
+  secFilings: [
+    'material weakness', 'restatement', 'class action', 'investigation',
+    'litigation', 'breach', 'violation', 'penalty', 'settlement',
+    'deficiency', 'non-compliance', 'whistleblower', 'subpoena'
+  ],
+  ftcActions: [
+    'deceptive practices', 'unfair practices', 'consumer harm',
+    'false advertising', 'privacy violation', 'data breach',
+    'unauthorized charges', 'hidden fees', 'misleading claims'
+  ],
+  regulatoryPatterns: [
+    'consent order', 'enforcement action', 'civil penalty',
+    'injunction', 'disgorgement', 'restitution', 'refund program',
+    'compliance failure', 'regulatory violation'
+  ]
+}
+
+// Successful case patterns for cross-referencing
+const SUCCESS_PATTERNS = {
+  highValueIndicators: [
+    'million dollar settlement', 'nationwide class', 'automatic payment',
+    'no proof of purchase', 'significant payout', 'cash payment'
+  ],
+  easyClaimIndicators: [
+    'online claim form', 'simple process', 'minimal documentation',
+    'self-certification', 'automated eligibility', 'no receipts required'
+  ],
+  urgencyIndicators: [
+    'deadline approaching', 'limited time', 'expires soon',
+    'final notice', 'last chance', 'closing soon'
+  ]
+}
+
 /**
  * Orchestrates intelligent claim collection across multiple sources.
  * Makes decisions about strategy and prioritization based on performance metrics.
@@ -47,6 +82,7 @@ export class AgenticOrchestrator {
   private performanceHistory: Map<string, number[]> = new Map()
   private sourceEffectiveness: Map<string, { successRate: number, avgQuality: number }> = new Map()
   private queryPerformance: Map<string, { hitRate: number, avgQuality: number }> = new Map()
+  private userTimezone: string = 'America/New_York' // Default to EST
   private generatedQueries: {
     seasonal: string[]
     trending: string[]
@@ -74,8 +110,33 @@ export class AgenticOrchestrator {
     }
   }
 
+  /**
+   * Set user timezone for optimized collection
+   */
+  setUserTimezone(timezone: string): void {
+    this.userTimezone = timezone
+    logger.info(`User timezone set to: ${timezone}`)
+  }
 
-  async runCollection(): Promise<{
+  /**
+   * Get user's local time and adjust strategy accordingly
+   */
+  private getUserLocalTime(): { hour: number, day: number, isBusinessHours: boolean } {
+    const now = new Date()
+    const userTime = new Date(now.toLocaleString("en-US", { timeZone: this.userTimezone }))
+    const hour = userTime.getHours()
+    const day = userTime.getDay()
+    const isBusinessHours = hour >= 9 && hour <= 17 && day >= 1 && day <= 5
+
+    return { hour, day, isBusinessHours }
+  }
+
+
+  async runCollection(options?: {
+    monitoringType?: string,
+    timezone?: string,
+    emergencyMode?: boolean
+  }): Promise<{
     strategy: string
     collectorsRun: string[]
     reasoning: string
@@ -83,7 +144,12 @@ export class AgenticOrchestrator {
   }> {
     logger.info('Starting AI-guided collection process')
 
-    const strategy = await this.selectOptimalStrategy()
+    // Set timezone if provided
+    if (options?.timezone) {
+      this.setUserTimezone(options.timezone)
+    }
+
+    const strategy = await this.selectOptimalStrategy(options?.monitoringType)
     logger.info(`Selected strategy: ${strategy.name} - ${strategy.reasoning}`)
 
     const prioritizedSources = await this.prioritizeSources()
@@ -117,6 +183,11 @@ export class AgenticOrchestrator {
         if (result.casesFound > 0 && source.name.includes('Exa')) {
           await this.extractCompaniesAndFindCIKs(result)
         }
+
+        // Run pattern recognition on found cases
+        if (result.casesFound > 0) {
+          await this.analyzeForViolationPatterns(result, source.name)
+        }
       }
     }
 
@@ -149,11 +220,12 @@ export class AgenticOrchestrator {
   /**
    * AI selects optimal collection strategy based on historical performance
    */
-  private async selectOptimalStrategy(): Promise<{ name: string, reasoning: string }> {
+  private async selectOptimalStrategy(monitoringType?: string): Promise<{ name: string, reasoning: string }> {
     const recentPerformance = await this.getRecentPerformanceMetrics()
-    const currentTime = new Date()
-    const dayOfWeek = currentTime.getDay()
-    const hourOfDay = currentTime.getHours()
+    const userTime = this.getUserLocalTime()
+
+    // Get source schedules for user's timezone
+    const sourceSchedules = this.getSourceSchedulesForTimezone()
 
     const strategyPrompt = `Based on the following data, determine the optimal legal opportunity collection strategy:
 
@@ -161,21 +233,30 @@ Recent Performance Metrics:
 ${JSON.stringify(recentPerformance, null, 2)}
 
 Current Context:
-- Day of week: ${dayOfWeek} (0=Sunday, 6=Saturday)  
-- Hour of day: ${hourOfDay}
-- Time: ${currentTime.toISOString()}
+- User timezone: ${this.userTimezone}
+- User local time: ${userTime.hour}:00
+- Day of week: ${userTime.day} (0=Sunday, 6=Saturday)  
+- Is business hours: ${userTime.isBusinessHours}
+- Monitoring type: ${monitoringType || 'general'}
+
+Source Schedules (adjusted for user timezone):
+${JSON.stringify(sourceSchedules, null, 2)}
 
 Historical patterns show:
 - FTC releases announcements typically on weekdays 9-5 EST
 - SEC filings often submitted after market close (4pm EST)
 - Class action sites update throughout the week
 - Legal news sites update during business hours
+- International sources may have different schedules
 
 Decide on strategy and provide reasoning:
 1. "aggressive" - Run all collectors with high frequency
 2. "targeted" - Focus on high-performing sources
 3. "exploratory" - Try new search terms and sources
 4. "maintenance" - Light collection, focus on data quality
+5. "emergency" - Rapid collection for breaking opportunities
+
+Consider user's timezone and adjust strategy accordingly.
 
 Return JSON: {"strategy": "targeted", "reasoning": "..."}`
 
@@ -770,6 +851,159 @@ Return JSON: {"quality": 8, "reasoning": "...", "keep": true}`
       return testSearch.length > 0
     } catch {
       return false
+    }
+  }
+
+  /**
+   * Get source schedules adjusted for user timezone
+   */
+  private getSourceSchedulesForTimezone(): Record<string, string> {
+    const userTime = this.getUserLocalTime()
+
+    // Convert typical source update times to user's timezone
+    const estToUserOffset = this.getTimezoneOffset('America/New_York', this.userTimezone)
+
+    return {
+      ftc: `Typically updates ${9 + estToUserOffset}-${17 + estToUserOffset} user time on weekdays`,
+      sec: `Peak filing time ${16 + estToUserOffset}-${18 + estToUserOffset} user time`,
+      classAction: 'Updates throughout the day, peaks during business hours',
+      news: `Most active ${8 + estToUserOffset}-${18 + estToUserOffset} user time`
+    }
+  }
+
+  /**
+   * Calculate timezone offset between two timezones
+   */
+  private getTimezoneOffset(fromTz: string, toTz: string): number {
+    const now = new Date()
+    const fromTime = new Date(now.toLocaleString("en-US", { timeZone: fromTz }))
+    const toTime = new Date(now.toLocaleString("en-US", { timeZone: toTz }))
+    return Math.round((toTime.getTime() - fromTime.getTime()) / (1000 * 60 * 60))
+  }
+
+  /**
+   * Analyze results for violation patterns and regulatory indicators
+   */
+  private async analyzeForViolationPatterns(
+    result: CollectorResult,
+    sourceName: string
+  ): Promise<void> {
+    try {
+      const patternPrompt = `Analyze these ${result.casesFound} legal cases for violation patterns and regulatory indicators:
+
+Source: ${sourceName}
+Cases found: ${result.casesFound}
+
+Look for these violation indicators:
+- SEC filing patterns: ${VIOLATION_INDICATORS.secFilings.join(', ')}
+- FTC action patterns: ${VIOLATION_INDICATORS.ftcActions.join(', ')}
+- Regulatory patterns: ${VIOLATION_INDICATORS.regulatoryPatterns.join(', ')}
+
+Also identify:
+- Companies with multiple violations
+- Emerging patterns across industries
+- Regulatory trends
+- High-impact consumer issues
+
+Score each pattern on:
+1. Settlement likelihood (0-10)
+2. Affected consumer count estimate
+3. Average payout estimate
+4. Claim difficulty (1-5, lower is easier)
+
+Return JSON: {
+  "violationPatterns": [
+    {
+      "pattern": "data breach settlements",
+      "companies": ["Company A", "Company B"],
+      "settlementLikelihood": 8,
+      "affectedConsumers": "1M+",
+      "avgPayout": "$125",
+      "claimDifficulty": 2
+    }
+  ],
+  "emergingTrends": ["trend1", "trend2"],
+  "highValueOpportunities": ["opportunity1", "opportunity2"]
+}`
+
+      const analysis = await geminiService.generateJSON(patternPrompt)
+
+      if (analysis.violationPatterns && analysis.violationPatterns.length > 0) {
+        logger.info(`Found ${analysis.violationPatterns.length} violation patterns in ${sourceName}`)
+
+        // Store high-value patterns for future searches
+        for (const pattern of analysis.violationPatterns) {
+          if (pattern.settlementLikelihood >= 7) {
+            this.generatedQueries.emerging.push(pattern.pattern)
+
+            // Add company-specific queries
+            for (const company of pattern.companies || []) {
+              this.generatedQueries.companies.push(`${company} ${pattern.pattern}`)
+            }
+          }
+        }
+
+        // Update query store
+        orchestratorQueryStore.queries = this.generatedQueries
+      }
+    } catch (error) {
+      logger.error('Failed to analyze violation patterns', error)
+    }
+  }
+
+  /**
+   * Cross-reference against successful case patterns
+   */
+  async crossReferenceSuccessPatterns(
+    newCase: ExtractedCase
+  ): Promise<{ score: number, factors: string[] }> {
+    let score = 5 // Base score
+    const factors: string[] = []
+
+    // Check for high-value indicators
+    const description = (newCase.description + ' ' + (newCase.fullDescription || '')).toLowerCase()
+
+    for (const indicator of SUCCESS_PATTERNS.highValueIndicators) {
+      if (description.includes(indicator)) {
+        score += 1
+        factors.push(`High-value indicator: ${indicator}`)
+      }
+    }
+
+    // Check for easy claim indicators
+    for (const indicator of SUCCESS_PATTERNS.easyClaimIndicators) {
+      if (description.includes(indicator)) {
+        score += 0.5
+        factors.push(`Easy claim indicator: ${indicator}`)
+      }
+    }
+
+    // Check for urgency
+    for (const indicator of SUCCESS_PATTERNS.urgencyIndicators) {
+      if (description.includes(indicator)) {
+        score += 0.5
+        factors.push(`Urgent: ${indicator}`)
+      }
+    }
+
+    // Compare against historical successful cases
+    try {
+      const similarSuccessfulCases = await db.getRecentCasesForDuplicateCheck(30 * 24)
+      const successfulPatterns = similarSuccessfulCases
+        .filter((c: any) => c.estimatedPayout && parseInt(c.estimatedPayout.replace(/\D/g, '')) > 100)
+        .map((c: any) => c.category)
+
+      if (successfulPatterns.includes(newCase.category)) {
+        score += 1
+        factors.push(`Similar to successful ${newCase.category} cases`)
+      }
+    } catch (error) {
+      logger.error('Failed to cross-reference success patterns', error)
+    }
+
+    return {
+      score: Math.min(score, 10),
+      factors
     }
   }
 }

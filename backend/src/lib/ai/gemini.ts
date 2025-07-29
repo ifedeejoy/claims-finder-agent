@@ -52,6 +52,9 @@ export class GeminiService {
         throw new AIExtractionError('Failed to parse JSON from AI response', rawText)
       }
 
+      // Clean null values to undefined for optional fields
+      extractedData = this.cleanNullValues(extractedData)
+
       // Validate the extracted data against our schema
       const validated = ExtractedCaseSchema.parse(extractedData)
 
@@ -72,6 +75,28 @@ export class GeminiService {
         rawText
       )
     }
+  }
+
+  /**
+   * Clean null values to undefined for optional fields
+   */
+  private cleanNullValues(obj: any): any {
+    if (obj === null) return undefined
+    if (typeof obj !== 'object') return obj
+    if (Array.isArray(obj)) return obj.map(item => this.cleanNullValues(item))
+
+    const cleaned: any = {}
+    for (const [key, value] of Object.entries(obj)) {
+      if (value === null) {
+        // Don't add null values - let them be undefined
+        continue
+      } else if (typeof value === 'object') {
+        cleaned[key] = this.cleanNullValues(value)
+      } else {
+        cleaned[key] = value
+      }
+    }
+    return cleaned
   }
 
   /**
@@ -214,13 +239,14 @@ Extract and return a detailed JSON object with ALL available information:
 
 IMPORTANT RULES:
 - Extract AS MUCH detail as possible from the text
-- For dates, use YYYY-MM-DD format or null if not found
+- For dates, use YYYY-MM-DD format if found, otherwise omit the field
 - For URLs, ensure they are complete and valid
 - Set externalRedirect to false so claims are displayed in our app
-- If information is not found, use null (not empty string)
+- If information is not found, omit the field entirely (don't include it in the JSON)
 - Be very thorough in extracting eligibility criteria
 - Include all contact methods found
 - Extract any FAQs or Q&A sections
+- Only include fields that have actual values
 
 Return ONLY the JSON object, no other text.`
   }
