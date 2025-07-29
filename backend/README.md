@@ -1,263 +1,148 @@
-# Claim Finder Backend Service
+# Claim Finder Backend
 
-A separate Node.js/Express backend service that handles long-running data collection tasks with AI-guided orchestration for the Claim Finder application.
+This is the backend service for the Claim Finder application, deployed separately to Railway.
 
-## 🤖 AI-Guided Orchestration
+## Architecture
 
-The backend uses an intelligent orchestrator powered by Gemini AI to optimize the collection process:
+- **Framework**: Node.js + Express + TypeScript
+- **Queue System**: BullMQ with Redis
+- **AI Services**: Google Gemini + Exa API
+- **Database**: Supabase
+- **Deployment**: Railway (separate from frontend)
 
-### Features
+## Deployment
 
-- **Smart Strategy Selection**: AI analyzes performance metrics and time patterns to choose optimal collection strategies
-- **Dynamic Source Prioritization**: Sources are ranked based on historical success rates and recency
-- **Query Optimization**: AI improves search queries based on successful past discoveries
-- **Quality Assessment**: Automatic filtering of low-quality opportunities
-- **Source Discovery**: Monthly discovery of new legal opportunity sources
+This backend is deployed to Railway independently of the frontend:
 
-### Collection Strategies
+1. **Automatic Deployment**: Pushes to `main` branch trigger deployment via GitHub Actions
+2. **Manual Deployment**: `railway up` from the project root (not this directory)
 
-1. **Aggressive**: Run all collectors with high frequency (high activity periods)
-2. **Targeted**: Focus on high-performing sources (default strategy)
-3. **Exploratory**: Try new search terms and sources (discovery mode)
-4. **Maintenance**: Light collection, focus on data quality (low activity periods)
+The Railway configuration at the root level (`railway.json`) ensures only this backend folder is deployed.
 
-## 🚀 Quick Start
-
-### Local Development
+## Local Development
 
 ```bash
-# Setup (first time only)
-npm run setup
+# Install dependencies
+npm install
 
-# Start development server with AI orchestration
+# Run in development mode
 npm run dev
 
-# The server will run on http://localhost:3001
+# Build for production
+npm run build
+
+# Run production build
+npm start
 ```
 
-### Environment Variables
+## Environment Variables
 
-Create a `.env` file in the backend directory:
+Required for production (set in Railway dashboard):
+- `REDIS_URL` - Automatically provided by Railway Redis
+- `GEMINI_API_KEY` - Google Gemini API key
+- `EXA_API_KEY` - Exa search API key
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key
 
-```env
-# Core Configuration
-PORT=3001
-NODE_ENV=development
+Optional:
+- `ENABLE_CRON` - Enable scheduled collectors (default: false)
+- `WEBHOOK_URL` - Frontend webhook for notifications
+- `PORT` - Server port (default: 3001, auto-set by Railway)
 
-# Database
-SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+## API Endpoints
 
-# AI Services
-GEMINI_API_KEY=your_gemini_api_key
-EXA_API_KEY=your_exa_api_key
+### Collector Management
+- `POST /api/collectors/run` - Start a collector job
+- `GET /api/collectors/jobs/:id` - Get job status
+- `GET /api/collectors/jobs` - List all jobs
+- `GET /api/collectors/metrics` - System metrics
 
-# Optional: Webhook for notifications
-WEBHOOK_URL=https://your-frontend.vercel.app/api/webhooks/collector
-```
+### Monitoring
+- `POST /api/collectors/monitor/start` - Start continuous monitoring
+- `POST /api/collectors/monitor/stop` - Stop monitoring
+- `GET /api/collectors/monitor/status` - Get monitoring status
 
-## 📡 API Endpoints
+### Health & Admin
+- `GET /api/health` - Health check endpoint
+- `GET /admin/queues` - Bull Dashboard (job queue UI)
 
-### Run Collection
+## Collectors
 
-```bash
-POST /api/collectors/run
-Content-Type: application/json
+The backend includes several collectors that gather legal opportunities:
 
-{
-  "type": "all" | "exa" | "ftc" | "sec"
-}
+1. **Exa Collector** - Web search for class actions, settlements
+2. **FTC Collector** - Federal Trade Commission announcements
+3. **SEC Collector** - Securities and Exchange Commission filings
+4. **AI Orchestrator** - Intelligent collector coordination
 
-# Response
-{
-  "success": true,
-  "data": {
-    "jobId": "job_123456789_abc",
-    "message": "Collector job all started",
-    "status": "pending"
-  }
-}
-```
+## Monitoring Features
 
-### Check Job Status
+- **Continuous Monitoring**: Scheduled collection runs
+- **Pattern Recognition**: AI identifies violation patterns
+- **CIK Lookup**: Automatic company identification
+- **Timezone Awareness**: Adjusts schedules to user timezone
 
-```bash
-GET /api/collectors/jobs/:jobId
-
-# Response (AI-guided collection)
-{
-  "success": true,
-  "data": {
-    "id": "job_123456789_abc",
-    "type": "all",
-    "status": "completed",
-    "strategy": "targeted",
-    "reasoning": "Business hours with good historical performance for FTC and SEC sources",
-    "result": {
-      "collectorsRun": ["Exa Web Search", "FTC Press Releases"],
-      "totalCasesFound": 25,
-      "totalCasesProcessed": 22,
-      "errors": []
-    },
-    "duration": 45.2
-  }
-}
-```
-
-### List All Jobs
-
-```bash
-GET /api/collectors/jobs
-
-# Returns last 50 jobs with AI strategy information
-```
-
-### Health Check
-
-```bash
-GET /api/health
-```
-
-## 🚀 Deployment
-
-### Railway (Recommended)
-
-1. Install Railway CLI:
-```bash
-npm install -g @railway/cli
-```
-
-2. Login and initialize:
-```bash
-railway login
-railway init
-```
-
-3. Set environment variables:
-```bash
-railway variables set GEMINI_API_KEY=your_key
-railway variables set EXA_API_KEY=your_key
-railway variables set SUPABASE_URL=your_url
-railway variables set SUPABASE_SERVICE_ROLE_KEY=your_key
-```
-
-4. Deploy:
-```bash
-railway up
-```
-
-### Vercel (Not Recommended)
-Vercel has timeout limits that make it unsuitable for long-running collection tasks. Use Railway or another platform that supports background jobs.
-
-## 🕐 Automated Collection Schedule
-
-The AI orchestrator runs on the following schedule:
-
-- **Main Collection**: Every 4 hours (AI-guided strategy)
-- **Quick Exa Search**: Every 2 hours (time-sensitive opportunities)
-- **FTC Check**: Daily at 10 AM EST
-- **SEC Check**: Daily at 5 PM EST (after market close)
-- **Query Optimization**: Weekly on Sundays
-- **Source Discovery**: Monthly on the 1st
-
-## 🏗️ Architecture
+## Project Structure
 
 ```
 backend/
 ├── src/
-│   ├── server-simple.ts      # Main server with in-memory jobs
+│   ├── server.ts           # Main server with cron
+│   ├── server-simple.ts    # Simple server (default)
 │   ├── lib/
-│   │   ├── ai/
-│   │   │   ├── agentic-orchestrator.ts  # AI-guided orchestration
-│   │   │   ├── gemini.ts                # Gemini AI integration
-│   │   │   └── exa.ts                   # Exa search service
-│   │   ├── collectors/       # Individual collector implementations
-│   │   ├── supabase/        # Database operations
-│   │   └── logger.ts        # Winston logging
-│   ├── cron/               # Scheduled jobs
-│   └── types/              # TypeScript definitions
-├── dist/                   # Compiled JavaScript
-└── logs/                   # Application logs
+│   │   ├── ai/            # AI services (Gemini, Exa)
+│   │   ├── collectors/    # Data collectors
+│   │   └── supabase/      # Database operations
+│   ├── queues/            # BullMQ job processing
+│   ├── routes/            # API routes
+│   └── types/             # TypeScript types
+├── logs/                  # Application logs
+├── package.json          # Dependencies
+├── tsconfig.json         # TypeScript config
+├── railway.toml          # Railway configuration
+└── nixpacks.toml         # Build configuration
 ```
 
-## 🔍 Monitoring
+## Logs
 
-### AI Orchestration Logs
+Logs are stored in the `logs/` directory:
+- `combined.log` - All logs
+- `error.log` - Error logs only
 
-The system logs detailed information about AI decisions:
+In production, logs are available in the Railway dashboard.
 
-```
-INFO: Selected strategy: targeted - Business hours with good historical performance
-INFO: Running collector: Exa Web Search (priority: 0.82)
-INFO: Updated metrics for Exa Web Search: Success rate 87.5%
-```
+## Redis
 
-### Performance Metrics
+Redis is used for:
+- Job queue management (BullMQ)
+- Caching collector results
+- Rate limiting
 
-Track collector performance through the job API:
-- Success rates per source
-- Average processing time
-- Error patterns
-- AI strategy effectiveness
+Railway automatically provides Redis when added as a service.
 
-## 🛡️ Security
+## Troubleshooting
 
-- All API keys stored as environment variables
-- Service role key used for Supabase operations
-- CORS configured for frontend origin
-- Rate limiting on external API calls
+1. **Redis Connection Failed**
+   - Ensure Redis service is added in Railway
+   - Check REDIS_URL environment variable
 
-## 🧪 Testing
+2. **API Key Errors**
+   - Verify all required API keys are set
+   - Check logs for specific API errors
 
-Test the AI orchestration locally:
+3. **Build Failures**
+   - Check nixpacks.toml configuration
+   - Ensure all dependencies are in package.json
 
-```bash
-# Test all collectors with AI guidance
-curl -X POST http://localhost:3001/api/collectors/run \
-  -H "Content-Type: application/json" \
-  -d '{"type": "all"}'
+## Development Tips
 
-# Check job status
-curl http://localhost:3001/api/collectors/jobs/JOB_ID
-```
+1. Use `npm run dev` for hot-reloading during development
+2. Test collectors individually before running all
+3. Monitor Bull Dashboard for job status
+4. Check logs for AI decision-making insights
 
-## 📈 Cost Optimization
+## Related Documentation
 
-The AI orchestrator helps reduce costs by:
-- Prioritizing high-value sources
-- Avoiding redundant searches
-- Optimizing API call frequency
-- Filtering low-quality results early
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-1. **AI Strategy Selection Fails**
-   - Check GEMINI_API_KEY is set correctly
-   - System falls back to "targeted" strategy
-
-2. **Collectors Not Running**
-   - Verify all API keys are set
-   - Check logs in `logs/` directory
-   - Ensure database connection is working
-
-3. **High API Costs**
-   - Adjust collection frequency in cron schedule
-   - Review AI strategy logs for optimization opportunities
-   - Consider reducing `numResults` in Exa searches
-
-### Debug Mode
-
-Enable detailed logging:
-```bash
-DEBUG=* npm run dev
-```
-
-## 🚀 Future Enhancements
-
-- [ ] Real-time strategy adjustments based on live metrics
-- [ ] Multi-model AI consensus for quality assessment
-- [ ] Automatic source quality degradation detection
-- [ ] Cost prediction and budget management
-- [ ] Custom strategy plugins 
+- [Deployment Guide](./DEPLOYMENT.md) - Detailed deployment instructions
+- [Monitoring Guide](./MONITORING.md) - Continuous monitoring setup
+- [Main Project README](../README.md) - Overall project documentation 

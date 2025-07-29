@@ -1,169 +1,188 @@
-# Backend Deployment Guide for Railway
+# Backend Deployment Guide
 
-This guide walks you through deploying the Claim Finder backend to Railway with Redis support.
+## Overview
 
-## Prerequisites
+The Claim Finder backend is deployed separately from the frontend:
+- **Backend**: Deployed to Railway
+- **Frontend**: Deployed to Vercel
+- **Database**: Supabase (shared between environments)
+- **Redis**: Railway Redis add-on
 
-- Railway account (https://railway.app)
-- GitHub account
-- Backend code in a separate repository
+## Deployment Architecture
 
-## Step 1: Prepare the Repository
-
-1. Move the backend folder to a new repository:
-```bash
-# Create new repo
-mkdir claim-finder-backend
-cd claim-finder-backend
-
-# Copy backend files
-cp -r path/to/claim-finder-agent/backend/* .
-
-# Initialize git
-git init
-git add .
-git commit -m "Initial backend setup"
-
-# Push to GitHub
-git remote add origin https://github.com/YOUR_USERNAME/claim-finder-backend.git
-git push -u origin main
+```
+Frontend (Vercel) --> Backend API (Railway) --> Supabase DB
+                                           \--> Redis (Railway)
 ```
 
-2. Ensure these files are present:
-- `package.json` with correct scripts
-- `railway.toml` configuration
-- `src/server-simple.ts` as the main server file
+## Railway Deployment
 
-## Step 2: Deploy to Railway
+### Initial Setup
 
-1. **Create New Project**
-   - Go to https://railway.app
-   - Click "New Project"
-   - Select "Deploy from GitHub repo"
-   - Choose your backend repository
+1. **Create Railway Project**
+   ```bash
+   # Install Railway CLI
+   npm install -g @railway/cli
+   
+   # Login to Railway
+   railway login
+   
+   # Create new project
+   railway init
+   ```
 
 2. **Add Redis Service**
-   - In your Railway project, click "New Service"
-   - Select "Database" → "Add Redis"
-   - Railway will automatically set `REDIS_URL` environment variable
+   - In Railway dashboard, click "New Service"
+   - Select "Redis"
+   - Railway will automatically provide `REDIS_URL`
 
 3. **Configure Environment Variables**
-   - Click on your backend service
-   - Go to "Variables" tab
-   - Add required variables:
-     ```
-     GEMINI_API_KEY=your_gemini_api_key
-     EXA_API_KEY=your_exa_api_key
-     SUPABASE_URL=your_supabase_url
-     SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-     NODE_ENV=production
-     PORT=3001
-     ```
-
-4. **Deploy**
-   - Railway will automatically deploy when you push to GitHub
-   - Monitor deployment in the Railway dashboard
-
-## Step 3: Verify Deployment
-
-1. **Check Health Endpoint**
-   ```bash
-   curl https://your-app.railway.app/api/health
+   In Railway dashboard, add:
+   ```
+   GEMINI_API_KEY=your-gemini-api-key
+   EXA_API_KEY=your-exa-api-key
+   SUPABASE_URL=your-supabase-url
+   SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+   ENABLE_CRON=true
+   WEBHOOK_URL=https://your-frontend.vercel.app/api/webhooks/collector
    ```
 
-2. **Access Bull Dashboard**
-   - Navigate to: `https://your-app.railway.app/admin/queues`
-   - Monitor job queues and Redis connection
-
-3. **Test Collector API**
+4. **Get Railway Token for GitHub Actions**
    ```bash
-   # Start a collection job
-   curl -X POST https://your-app.railway.app/api/collectors/run \
-     -H "Content-Type: application/json" \
-     -d '{"type": "all"}'
+   railway tokens create github-actions
+   ```
+   Add this token as `RAILWAY_TOKEN` in GitHub Secrets
+
+### Railway Configuration Files
+
+The backend uses these configuration files:
+
+1. **`railway.json`** (root directory) - Tells Railway to build only the backend
+   ```json
+   {
+     "build": {
+       "builder": "nixpacks",
+       "buildCommand": "cd backend && npm install && npm run build",
+       "watchPatterns": ["backend/**"]
+     },
+     "deploy": {
+       "startCommand": "cd backend && npm start"
+     }
+   }
+   ```
+
+2. **`backend/railway.toml`** - Backend-specific Railway configuration
+3. **`backend/nixpacks.toml`** - Build configuration for nixpacks
+
+### Manual Deployment
+
+```bash
+# From project root
+railway up --service backend
+
+# Or from backend directory
+cd backend
+railway up
+```
+
+## GitHub Actions Deployment
+
+The `.github/workflows/deploy.yml` handles automatic deployments:
+
+1. **On push to main**:
+   - Tests frontend and backend separately
+   - Deploys frontend to Vercel
+   - Deploys backend to Railway
+
+2. **Required GitHub Secrets**:
+   ```
+   # Frontend (Vercel)
+   VERCEL_TOKEN
+   VERCEL_ORG_ID
+   VERCEL_PROJECT_ID
    
-   # Check job status
-   curl https://your-app.railway.app/api/collectors/jobs/JOB_ID
+   # Backend (Railway)
+   RAILWAY_TOKEN
+   
+   # Shared API Keys
+   NEXT_PUBLIC_SUPABASE_URL
+   NEXT_PUBLIC_SUPABASE_ANON_KEY
+   SUPABASE_SERVICE_ROLE_KEY
+   GEMINI_API_KEY
+   EXA_API_KEY
    ```
 
-## Environment Variables Reference
+## Environment Variables
 
-### Required
-- `REDIS_URL` - Automatically provided by Railway when Redis is added
-- `GEMINI_API_KEY` - Google Gemini API key for AI processing
-- `EXA_API_KEY` - Exa API key for web search
-- `SUPABASE_URL` - Supabase project URL
-- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key
+### Backend (Railway)
+- `NODE_ENV=production`
+- `PORT=3001` (Railway provides this)
+- `REDIS_URL` (auto-provided by Railway)
+- `GEMINI_API_KEY`
+- `EXA_API_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ENABLE_CRON=true`
+- `WEBHOOK_URL` (optional)
 
-### Optional
-- `ENABLE_CRON` - Set to "true" to enable scheduled collection (if using server.ts)
-- `WEBHOOK_URL` - Frontend URL for notifications
-- `NODE_ENV` - Set to "production" (Railway sets this automatically)
-- `PORT` - Server port (default: 3001, Railway sets this automatically)
-
-## Redis Configuration
-
-The backend automatically connects to Redis using:
-1. `REDIS_URL` if provided (Railway's default)
-2. Individual `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` if no URL
+### Frontend (Vercel)
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_BACKEND_URL` (your Railway backend URL)
 
 ## Monitoring
 
-1. **Logs**
-   - View in Railway dashboard under "Logs" tab
-   - Application logs include AI decisions and collector status
-
-2. **Bull Dashboard**
-   - Access at `/admin/queues`
-   - Monitor job queues, success/failure rates
-   - View individual job details
-
-3. **Health Check**
-   - Railway automatically monitors `/api/health`
-   - Includes Redis connection status
+1. **Backend Health**: `https://your-backend.railway.app/api/health`
+2. **Bull Dashboard**: `https://your-backend.railway.app/admin/queues`
+3. **Railway Logs**: Available in Railway dashboard
+4. **Vercel Logs**: Available in Vercel dashboard
 
 ## Troubleshooting
 
-### Redis Connection Issues
-- Ensure Redis service is running in Railway
-- Check `REDIS_URL` is set correctly
-- View connection status in health endpoint
+### Railway Build Failures
 
-### API Key Errors
-- Verify all required API keys are set
-- Check logs for specific API errors
-- Test with minimal collectors first
+1. **Check build logs in Railway dashboard**
+2. **Ensure all dependencies are in package.json**
+3. **Check nixpacks.toml configuration**
 
-### Memory Issues
-- Adjust memory limits in `railway.toml`
-- Monitor usage in Railway dashboard
-- Consider running collectors individually
+### Common Issues
 
-## Production Best Practices
+1. **"Cannot find module" errors**
+   - Ensure all dependencies are listed in backend/package.json
+   - Check that TypeScript paths are resolved correctly
 
-1. **Security**
-   - Use environment variables for all secrets
-   - Enable CORS for your frontend domain only
-   - Regularly rotate API keys
+2. **Redis connection errors**
+   - Ensure Redis service is added in Railway
+   - Check REDIS_URL is available
 
-2. **Performance**
-   - Monitor Redis memory usage
-   - Clean up old jobs periodically (automated)
-   - Use job progress tracking for long-running tasks
+3. **Build timeout**
+   - Increase build timeout in Railway settings
+   - Optimize build process
 
-3. **Reliability**
-   - Railway automatically restarts on failures
-   - Redis persists job data
-   - Health checks ensure availability
+### Rollback
 
-## Updating
-
-To update the deployed backend:
-
+Railway automatically keeps previous deployments:
 ```bash
-git add .
-git commit -m "Update description"
-git push origin main
+# List deployments
+railway deployments
+
+# Rollback to previous
+railway rollback
 ```
 
-Railway will automatically detect changes and redeploy. 
+## Local Development
+
+To test Railway deployment locally:
+```bash
+cd backend
+npm install
+npm run build
+npm start
+```
+
+## Cost Optimization
+
+1. **Use Railway's sleep feature** for development environments
+2. **Monitor Redis memory usage**
+3. **Set appropriate resource limits in railway.toml**
+4. **Use Vercel's hobby plan for frontend** 

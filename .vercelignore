@@ -1,0 +1,27 @@
+# Ignore backend folder (deployed to Railway)
+backend/
+
+# Development files
+.env
+.env.local
+.env.development
+.env.production
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+DEVELOPER.md
+AGENT.md
+
+# Scripts
+scripts/
+
+# Logs
+*.log
+
+# Railway configuration
+railway.json
+railway.toml 
