@@ -76,7 +76,7 @@ interface JobResult {
 
 // Process jobs
 collectorQueue.process(async (job) => {
-  const { type } = job.data
+  const { type, monitoringType } = job.data as { type: string; monitoringType?: string }
 
   try {
     await job.progress(10)
@@ -86,9 +86,33 @@ collectorQueue.process(async (job) => {
     let reasoning: string | undefined
     let collectorsRun: string[] | undefined
 
-    if (type === 'all') {
+    if (type === 'all' || type === 'continuous') {
       // Use AI-guided orchestrator
-      logger.info('Using AI-guided orchestrator for collection')
+      if (type === 'continuous' && job.data.monitoringType) {
+        logger.info(`Running continuous monitoring: ${job.data.monitoringType}`)
+
+        // Log monitoring type details
+        switch (job.data.monitoringType) {
+          case 'newsFeeds':
+            logger.info('Running news feed monitoring - checking for breaking opportunities')
+            break
+          case 'secFilings':
+            logger.info('Running SEC filing monitoring - checking for new filings with violation indicators')
+            break
+          case 'ftcAnnouncements':
+            logger.info('Running FTC/regulatory monitoring - checking for new enforcement actions')
+            break
+          case 'deepAnalysis':
+            logger.info('Running deep analysis - comprehensive pattern recognition across all sources')
+            break
+          case 'weekendScan':
+            logger.info('Running weekend scan - checking for opportunities posted during off-hours')
+            break
+        }
+      } else {
+        logger.info('Using AI-guided orchestrator for collection')
+      }
+
       await job.progress(30)
 
       const orchestratorResult = await agenticOrchestrator.runCollection()

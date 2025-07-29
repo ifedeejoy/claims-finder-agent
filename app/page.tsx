@@ -14,7 +14,7 @@ export default function Home() {
                 Discover legal opportunities and check your eligibility
               </p>
             </div>
-            <CollectorStatus />
+            {/* <CollectorStatus /> */}
           </div>
         </div>
       </header>
