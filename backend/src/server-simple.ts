@@ -24,15 +24,33 @@ app.use(cors())
 app.use(express.json())
 
 // Create Bull queue with Redis configuration
-const collectorQueue = process.env.REDIS_URL ?
-  new Bull('collector-jobs', process.env.REDIS_URL) :
-  new Bull('collector-jobs', {
+let collectorQueue: Bull.Queue
+
+if (process.env.REDIS_URL) {
+  // Parse Redis URL to extract connection details
+  const redisURL = new URL(process.env.REDIS_URL)
+
+  // Use family: 0 for IPv6 support as per Railway documentation
+  collectorQueue = new Bull('collector-jobs', {
     redis: {
+      family: 0, // Support both IPv4 and IPv6
+      host: redisURL.hostname,
+      port: parseInt(redisURL.port),
+      username: redisURL.username,
+      password: redisURL.password
+    }
+  })
+} else {
+  // Fallback to individual Redis config
+  collectorQueue = new Bull('collector-jobs', {
+    redis: {
+      family: 0, // Support both IPv4 and IPv6
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379'),
       password: process.env.REDIS_PASSWORD
     }
   })
+}
 
 // Store queues in app locals IMMEDIATELY after creating them
 app.locals.queues = { collectorQueue }
