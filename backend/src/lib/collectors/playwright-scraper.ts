@@ -1,12 +1,12 @@
 import { chromium, Browser, Page } from 'playwright'
 import { GeminiService } from '@/lib/ai/gemini'
-import { LegalOpportunity } from '@/types/legal-opportunity'
+import { ExtractedCase } from '@/types'
 import fs from 'fs/promises'
 import path from 'path'
 
 export interface ScreenshotScrapingResult {
   success: boolean
-  legalOpportunity?: LegalOpportunity
+  legalOpportunity?: ExtractedCase
   error?: string
   screenshotPath?: string
 }
@@ -21,7 +21,7 @@ export class PlaywrightScraper {
 
   async initialize(): Promise<void> {
     if (!this.browser) {
-      this.browser = await chromium.launch({ 
+      this.browser = await chromium.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       })
@@ -51,9 +51,9 @@ export class PlaywrightScraper {
       try {
         // Navigate to the URL
         console.log(`[Playwright] Navigating to: ${url}`)
-        await page.goto(url, { 
+        await page.goto(url, {
           waitUntil: 'networkidle',
-          timeout: 30000 
+          timeout: 30000
         })
 
         // Wait for any dynamic content to load
@@ -64,7 +64,7 @@ export class PlaywrightScraper {
 
         // Get page text for initial analysis
         const pageText = await page.textContent('body') || ''
-        
+
         // Quick text-based filter - if clearly not legal content, skip screenshot
         if (!this.isLikelyLegalContent(pageText)) {
           console.log(`[Playwright] Content doesn't appear to be legal-related, skipping: ${url}`)
@@ -74,7 +74,7 @@ export class PlaywrightScraper {
 
         // Take full-page screenshot
         const screenshotPath = await this.takeFullPageScreenshot(page, url)
-        
+
         // Scroll to capture any lazy-loaded content
         await this.scrollAndCapture(page)
 
@@ -88,16 +88,16 @@ export class PlaywrightScraper {
 
         if (legalOpportunity) {
           console.log(`[Playwright] Successfully extracted case: ${legalOpportunity.title}`)
-          return { 
-            success: true, 
+          return {
+            success: true,
             legalOpportunity,
-            screenshotPath 
+            screenshotPath
           }
         } else {
-          return { 
-            success: false, 
+          return {
+            success: false,
             error: 'No legal opportunity found',
-            screenshotPath 
+            screenshotPath
           }
         }
 
@@ -155,7 +155,7 @@ export class PlaywrightScraper {
     ]
 
     const lowerText = text.toLowerCase()
-    const keywordCount = legalKeywords.filter(keyword => 
+    const keywordCount = legalKeywords.filter(keyword =>
       lowerText.includes(keyword)
     ).length
 
@@ -216,10 +216,10 @@ export class PlaywrightScraper {
   }
 
   private async analyzeScreenshotWithAI(
-    screenshotPath: string, 
-    pageText: string, 
+    screenshotPath: string,
+    pageText: string,
     url: string
-  ): Promise<LegalOpportunity | null> {
+  ): Promise<ExtractedCase | null> {
     try {
       // Read screenshot as base64
       const screenshotBuffer = await fs.readFile(screenshotPath)
@@ -264,11 +264,11 @@ export class PlaywrightScraper {
       `
 
       const result = await this.geminiService.extractWithImage(prompt, screenshotBase64)
-      
+
       if (result && typeof result === 'object' && result.title) {
         return {
           sourceId: '', // Will be set by caller
-          ...result as LegalOpportunity,
+          ...result as ExtractedCase,
           claimUrl: result.claimUrl || url,
           rawText: pageText.substring(0, 1000),
           createdAt: new Date(),
@@ -286,18 +286,18 @@ export class PlaywrightScraper {
   // Batch processing method
   async scrapeMultipleUrls(urls: string[]): Promise<ScreenshotScrapingResult[]> {
     const results: ScreenshotScrapingResult[] = []
-    
+
     try {
       await this.initialize()
-      
+
       // Process URLs in batches to avoid overwhelming the system
       const batchSize = 3
       for (let i = 0; i < urls.length; i += batchSize) {
         const batch = urls.slice(i, i + batchSize)
-        
+
         const batchPromises = batch.map(url => this.scrapeWithScreenshot(url))
         const batchResults = await Promise.allSettled(batchPromises)
-        
+
         batchResults.forEach((result, index) => {
           if (result.status === 'fulfilled') {
             results.push(result.value)

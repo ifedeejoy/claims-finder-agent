@@ -5,7 +5,7 @@ import { createBullBoard } from '@bull-board/api'
 import { BullAdapter } from '@bull-board/api/bullAdapter'
 import { ExpressAdapter } from '@bull-board/express'
 import { setupQueues } from './queues/collector-queue'
-import { setupCronJobs } from './cron/scheduler'
+import { initializeCronJobs } from './cron/scheduler'
 import { logger } from './lib/logger'
 import collectorRoutes from './routes/collectors'
 import healthRoutes from './routes/health'
@@ -54,7 +54,7 @@ app.listen(PORT, () => {
 
   // Setup cron jobs
   if (process.env.ENABLE_CRON === 'true') {
-    setupCronJobs()
+    initializeCronJobs()
     logger.info('Cron jobs initialized')
   }
 }) 

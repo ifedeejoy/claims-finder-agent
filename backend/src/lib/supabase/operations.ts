@@ -28,7 +28,7 @@ export class DatabaseOperations {
       .single()
 
     if (error) throw new Error(`Failed to create source: ${error.message}`)
-    
+
     return this.mapDbSourceToSource(data)
   }
 
@@ -48,7 +48,7 @@ export class DatabaseOperations {
       .eq('is_active', true)
 
     if (error) throw new Error(`Failed to fetch sources: ${error.message}`)
-    
+
     return data.map(this.mapDbSourceToSource)
   }
 
@@ -62,7 +62,7 @@ export class DatabaseOperations {
     if (error && error.code !== 'PGRST116') {
       throw new Error(`Failed to find source: ${error.message}`)
     }
-    
+
     return data ? this.mapDbSourceToSource(data) : null
   }
 
@@ -74,7 +74,7 @@ export class DatabaseOperations {
         source_id: sourceId,
         title: caseData.title,
         description: caseData.description,
-        eligibility_criteria: caseData.eligibilityCriteria || null,
+        eligibility_criteria: caseData.eligibilityPreview ? caseData.eligibilityPreview.join('\n') : null,
         deadline_date: caseData.deadlineDate || null,
         claim_url: caseData.claimUrl || null,
         proof_required: caseData.proofRequired,
@@ -86,7 +86,7 @@ export class DatabaseOperations {
       .single()
 
     if (error) throw new Error(`Failed to create case: ${error.message}`)
-    
+
     return this.mapDbCaseToCase(data)
   }
 
@@ -97,7 +97,7 @@ export class DatabaseOperations {
         source_id: sourceId,
         title: caseData.title,
         description: caseData.description,
-        eligibility_criteria: caseData.eligibilityCriteria || null,
+        eligibility_criteria: caseData.eligibilityPreview ? caseData.eligibilityPreview.join('\n') : null,
         deadline_date: caseData.deadlineDate || null,
         claim_url: claimUrl,
         proof_required: caseData.proofRequired,
@@ -112,7 +112,7 @@ export class DatabaseOperations {
       .single()
 
     if (error) throw new Error(`Failed to upsert case: ${error.message}`)
-    
+
     return this.mapDbCaseToCase(data)
   }
 
@@ -126,7 +126,7 @@ export class DatabaseOperations {
     if (error && error.code !== 'PGRST116') {
       throw new Error(`Failed to fetch case: ${error.message}`)
     }
-    
+
     return data ? this.mapDbCaseToCase(data) : null
   }
 
@@ -140,7 +140,7 @@ export class DatabaseOperations {
     if (error && error.code !== 'PGRST116') {
       throw new Error(`Failed to find case by URL: ${error.message}`)
     }
-    
+
     return data ? this.mapDbCaseToCase(data) : null
   }
 
@@ -172,7 +172,7 @@ export class DatabaseOperations {
       console.warn('Failed to find similar cases:', error)
       return []
     }
-    
+
     return data ? data.map(this.mapDbCaseToCase) : []
   }
 
@@ -191,7 +191,7 @@ export class DatabaseOperations {
       console.warn('Failed to fetch recent cases:', error)
       return []
     }
-    
+
     return data ? data.map(this.mapDbCaseToCase) : []
   }
 
@@ -204,7 +204,7 @@ export class DatabaseOperations {
       .range(offset, offset + limit - 1)
 
     if (error) throw new Error(`Failed to fetch cases: ${error.message}`)
-    
+
     return data.map(this.mapDbCaseToCase)
   }
 
@@ -222,11 +222,11 @@ export class DatabaseOperations {
     return {
       id: dbSource.id,
       name: dbSource.name,
-      type: dbSource.type,
+      type: dbSource.type as 'exa' | 'sec' | 'ftc' | 'native',
       url: dbSource.url,
       lastChecked: new Date(dbSource.last_checked),
       isActive: dbSource.is_active,
-      config: dbSource.config,
+      config: dbSource.config as Record<string, unknown> | null,
       createdAt: new Date(dbSource.created_at)
     }
   }
@@ -245,7 +245,7 @@ export class DatabaseOperations {
       estimatedPayout: dbCase.estimated_payout,
       category: dbCase.category,
       rawText: dbCase.raw_text,
-      status: dbCase.status,
+      status: dbCase.status as 'active' | 'expired' | 'duplicate',
       createdAt: new Date(dbCase.created_at),
       updatedAt: new Date(dbCase.updated_at)
     }

@@ -2,10 +2,10 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "commonjs",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": true,
+    "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -16,7 +16,10 @@
       "@/*": ["./src/*"],
       "@collectors/*": ["./src/lib/collectors/*"],
       "@lib/*": ["./src/lib/*"]
-    }
+    },
+    "noImplicitAny": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

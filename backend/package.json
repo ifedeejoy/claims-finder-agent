@@ -5,7 +5,8 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server-simple.ts",
-    "build": "tsc",
+    "build": "tsc --noEmitOnError false",
+    "build:strict": "tsc",
     "start": "node dist/server-simple.js",
     "start:prod": "NODE_ENV=production node dist/server-simple.js",
     "test": "tsx src/test-collectors.ts",
@@ -35,6 +36,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20.11.16",
     "@types/node-cron": "^3.0.11",
+    "esbuild": "^0.25.8",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }

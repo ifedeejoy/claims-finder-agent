@@ -48,7 +48,7 @@ export class FtcCollector extends BaseCollector {
     }
 
     const duration = Date.now() - startTime
-    
+
     return {
       sourceName: this.sourceName,
       casesFound,
@@ -79,9 +79,9 @@ export class FtcCollector extends BaseCollector {
       const releases: Array<{ url: string; title: string; date: string; summary: string }> = []
 
       // Find press release listings - FTC uses specific selectors
-      $('.views-row').each((_, element) => {
+      $('.views-row').each((_: any, element: any) => {
         const $element = $(element)
-        
+
         const titleElement = $element.find('.field-title a')
         const dateElement = $element.find('.field-date')
         const summaryElement = $element.find('.field-summary')
@@ -93,8 +93,8 @@ export class FtcCollector extends BaseCollector {
 
         // Only process recent releases with settlement/refund keywords
         if (title && relativeUrl && this.isRelevantRelease(title, summary)) {
-          const fullUrl = relativeUrl.startsWith('http') 
-            ? relativeUrl 
+          const fullUrl = relativeUrl.startsWith('http')
+            ? relativeUrl
             : `${this.baseUrl}${relativeUrl}`
 
           releases.push({
@@ -108,9 +108,9 @@ export class FtcCollector extends BaseCollector {
 
       // Limit to most recent releases
       const recentReleases = releases.slice(0, 20)
-      
+
       this.log(`Found ${recentReleases.length} relevant press releases`, 'info')
-      
+
       return {
         found: recentReleases.length,
         releases: recentReleases
@@ -170,7 +170,7 @@ export class FtcCollector extends BaseCollector {
 
       // Clean and validate content
       const cleanedContent = this.cleanContent(content)
-      
+
       if (cleanedContent.length < 200) {
         throw new CollectorError(
           'Press release content too short',
@@ -198,7 +198,7 @@ export class FtcCollector extends BaseCollector {
 
       // Save to database
       await this.saveCase(extractedCase, sourceId, release.url)
-      
+
       this.log(`Successfully processed FTC case: ${extractedCase.title}`, 'info')
 
     } catch (error) {

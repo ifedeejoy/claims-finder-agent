@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { ExtractedCaseSchema, type ExtractedCase, type EligibilityQuestion } from '@/types'
 import { AIExtractionError } from '@/types'
+import { logger } from '../logger'
 
 let genAI: GoogleGenerativeAI | null = null
 let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
@@ -402,6 +403,87 @@ Return a JSON object:
     } catch (error) {
       console.error('Gemini image analysis failed:', error)
       throw new Error(`Failed to analyze image: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  async isLegalOpportunity(content: string): Promise<boolean> {
+    try {
+      const { model: geminiModel } = initializeGemini()
+      const prompt = `
+        Analyze the following content and determine if it contains information about a legal opportunity, settlement, class action lawsuit, consumer claim, or similar legal matter that consumers could benefit from.
+
+        Content:
+        ${content.substring(0, 5000)} // Limit content length
+
+        Return JSON: { "isLegalOpportunity": true/false }
+      `
+
+      const result = await geminiModel.generateContent(prompt)
+      const responseText = result.response.text()
+
+      try {
+        const json = JSON.parse(this.extractJSON(responseText))
+        return json.isLegalOpportunity === true
+      } catch {
+        // If parsing fails, look for keywords
+        const keywords = ['settlement', 'class action', 'lawsuit', 'claim', 'compensation', 'damages']
+        return keywords.some(keyword => content.toLowerCase().includes(keyword))
+      }
+    } catch (error) {
+      logger.error('Error checking if legal opportunity:', error)
+      return false
+    }
+  }
+
+  async detectDuplicates(
+    newCase: ExtractedCase,
+    existingCases: Array<{ title: string; description: string; claimUrl?: string | null; category: string }>
+  ): Promise<boolean> {
+    try {
+      const { model: geminiModel } = initializeGemini()
+      const prompt = `
+        Compare this new case with existing cases and determine if it's a duplicate.
+
+        New Case:
+        - Title: ${newCase.title}
+        - Description: ${newCase.description}
+        - Category: ${newCase.category}
+        - Claim URL: ${newCase.claimUrl}
+
+        Existing Cases:
+        ${existingCases.map((c, i) => `
+        ${i + 1}. Title: ${c.title}
+           Description: ${c.description}
+           Category: ${c.category}
+           URL: ${c.claimUrl}
+        `).join('\n')}
+
+        Consider a case a duplicate if:
+        - It refers to the same legal matter/settlement
+        - The company/defendant is the same
+        - The claim period overlaps significantly
+        - The URLs are very similar
+
+        Return JSON: { "isDuplicate": true/false, "duplicateOf": index_number_or_null }
+      `
+
+      const result = await geminiModel.generateContent(prompt)
+      const responseText = result.response.text()
+
+      try {
+        const json = JSON.parse(this.extractJSON(responseText))
+        return json.isDuplicate === true
+      } catch {
+        // If parsing fails, do simple title similarity check
+        return existingCases.some(c =>
+          c.title.toLowerCase() === newCase.title.toLowerCase() ||
+          (c.claimUrl && c.claimUrl === newCase.claimUrl)
+        )
+      }
+    } catch (error) {
+      logger.error('Error detecting duplicates:', error)
+      // On error, assume not duplicate to avoid missing cases
+      return false
     }
   }
 }

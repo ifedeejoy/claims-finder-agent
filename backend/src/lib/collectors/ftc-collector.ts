@@ -84,7 +84,7 @@ export class FtcCollector extends BaseCollector {
       const releases: Array<{ url: string; title: string; date: string; summary: string }> = []
 
       // Find press release listings - FTC uses specific selectors
-      $('.views-row').each((_, element) => {
+      $('.views-row').each((_: any, element: any) => {
         const $element = $(element)
 
         const titleElement = $element.find('.field-title a')

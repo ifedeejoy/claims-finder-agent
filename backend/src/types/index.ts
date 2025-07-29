@@ -139,7 +139,7 @@ export class CollectorError extends Error {
   constructor(
     message: string,
     public sourceName: string,
-    public errorType: 'network' | 'parsing' | 'extraction' | 'database' | 'unknown'
+    public errorType: 'network' | 'parsing' | 'extraction' | 'database' | 'ai' | 'unknown'
   ) {
     super(message)
     this.name = 'CollectorError'
