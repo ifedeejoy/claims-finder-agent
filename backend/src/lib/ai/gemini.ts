@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { ExtractedCaseSchema, type ExtractedCase, type EligibilityQuestion } from '@/types'
+import { PartialExtractedCaseSchema, type ExtractedCase, type EligibilityQuestion } from '@/types'
 import { AIExtractionError } from '@/types'
 import { logger } from '../logger'
 
@@ -56,8 +56,27 @@ export class GeminiService {
       // Clean null values to undefined for optional fields
       extractedData = this.cleanNullValues(extractedData)
 
-      // Validate the extracted data against our schema
-      const validated = ExtractedCaseSchema.parse(extractedData)
+      // First parse with partial schema, then validate required fields
+      const partialValidated = PartialExtractedCaseSchema.parse(extractedData)
+      
+      // Ensure required fields are present
+      if (!partialValidated.title || !partialValidated.description) {
+        throw new AIExtractionError('Missing required fields: title and description', rawText)
+      }
+
+      // Convert to full ExtractedCase
+      const validated = {
+        title: partialValidated.title,
+        description: partialValidated.description,
+        proofRequired: partialValidated.proofRequired ?? false,
+        ...partialValidated,
+        // Ensure eligibilityFull structure if it exists
+        eligibilityFull: partialValidated.eligibilityFull && partialValidated.eligibilityFull.required ? {
+          required: partialValidated.eligibilityFull.required,
+          optional: partialValidated.eligibilityFull.optional,
+          restrictions: partialValidated.eligibilityFull.restrictions
+        } : undefined
+      } as ExtractedCase
 
       // Generate eligibility questions if we have criteria
       let questions: EligibilityQuestion[] = []

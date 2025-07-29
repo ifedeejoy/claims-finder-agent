@@ -298,7 +298,7 @@ Return a JSON array of search queries.`
         const content = [
           result.legalOpportunity.title,
           result.legalOpportunity.description,
-          result.legalOpportunity.eligibilityCriteria?.requirements?.join(' '),
+          result.legalOpportunity.eligibilityFull?.required?.join(' '),
           result.legalOpportunity.estimatedPayout,
           result.legalOpportunity.deadlineDate
         ].filter(Boolean).join(' ')

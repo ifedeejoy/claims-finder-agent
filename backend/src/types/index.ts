@@ -84,6 +84,50 @@ export interface ExtractedCase {
   documentationRequired?: string[]
   claimFormUrl?: string
   externalRedirect?: boolean
+  rawText?: string
+}
+
+// Partial version for AI parsing where fields may be optional initially
+export interface PartialExtractedCase {
+  title?: string
+  description?: string
+  eligibilityPreview?: string[]
+  eligibilityFull?: {
+    required?: string[]
+    optional?: string[]
+    restrictions?: string[]
+  }
+  deadlineDate?: string
+  claimUrl?: string
+  proofRequired?: boolean
+  estimatedPayout?: string
+  category?: string
+  fullDescription?: string
+  howToClaim?: string
+  importantDates?: {
+    classStart?: string
+    classEnd?: string
+    filingDeadline?: string
+    exclusionDeadline?: string
+    finalApprovalHearing?: string
+    paymentDate?: string
+    [key: string]: string | undefined
+  }
+  contactInfo?: {
+    phone?: string
+    email?: string
+    mailingAddress?: string
+    website?: string
+    lawFirm?: string
+  }
+  faqs?: Array<{
+    question: string
+    answer: string
+  }>
+  documentationRequired?: string[]
+  claimFormUrl?: string
+  externalRedirect?: boolean
+  rawText?: string
 }
 
 export interface EligibilityQuestion {
@@ -199,5 +243,41 @@ export const ExtractedCaseSchema = z.object({
   })).optional(),
   documentationRequired: z.array(z.string()).optional(),
   claimFormUrl: z.string().url().optional(),
-  externalRedirect: z.boolean().default(true)
+  externalRedirect: z.boolean().default(true),
+  rawText: z.string().optional()
+})
+
+// Flexible schema for parsing AI responses
+export const PartialExtractedCaseSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+  eligibilityPreview: z.array(z.string()).optional(),
+  eligibilityFull: z.object({
+    required: z.array(z.string()).optional(),
+    optional: z.array(z.string()).optional(),
+    restrictions: z.array(z.string()).optional()
+  }).optional(),
+  deadlineDate: z.string().optional(),
+  claimUrl: z.string().optional(),
+  proofRequired: z.boolean().optional(),
+  estimatedPayout: z.string().optional(),
+  category: z.string().optional(),
+  fullDescription: z.string().optional(),
+  howToClaim: z.string().optional(),
+  importantDates: z.record(z.string()).optional(),
+  contactInfo: z.object({
+    phone: z.string().optional(),
+    email: z.string().optional(),
+    mailingAddress: z.string().optional(),
+    website: z.string().optional(),
+    lawFirm: z.string().optional()
+  }).optional(),
+  faqs: z.array(z.object({
+    question: z.string(),
+    answer: z.string()
+  })).optional(),
+  documentationRequired: z.array(z.string()).optional(),
+  claimFormUrl: z.string().optional(),
+  externalRedirect: z.boolean().optional(),
+  rawText: z.string().optional()
 })
