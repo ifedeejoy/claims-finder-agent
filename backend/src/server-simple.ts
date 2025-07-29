@@ -13,6 +13,7 @@ import { ExaCollector } from './lib/collectors/exa-collector'
 import { FtcCollector } from './lib/collectors/ftc-collector'
 import { SecCollector } from './lib/collectors/sec-collector'
 import collectorRoutes from './routes/collectors'
+import healthRoutes from './routes/health'
 import type { CollectorResult } from './types'
 
 const app = express()
@@ -130,30 +131,8 @@ app.use('/admin/queues', serverAdapter.getRouter())
 // Mount collector routes - app.locals.queues is already set above
 app.use('/api/collectors', collectorRoutes)
 
-// Health check endpoint
-app.get('/api/health', async (req, res) => {
-  try {
-    // Check Redis connection
-    await collectorQueue.isReady()
-
-    res.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV || 'development',
-      redis: 'connected'
-    })
-  } catch (error) {
-    res.status(503).json({
-      status: 'error',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV || 'development',
-      redis: 'disconnected',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
-  }
-})
+// Mount health routes
+app.use('/api/health', healthRoutes)
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
