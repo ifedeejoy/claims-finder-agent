@@ -265,14 +265,30 @@ export class PlaywrightScraper {
 
       const result = await this.geminiService.extractWithImage(prompt, screenshotBase64)
 
-      if (result && typeof result === 'object' && result.title) {
-        return {
-          sourceId: '', // Will be set by caller
-          ...result as ExtractedCase,
-          claimUrl: result.claimUrl || url,
-          rawText: pageText.substring(0, 1000),
-          createdAt: new Date(),
-          updatedAt: new Date()
+      if (result && typeof result === 'object') {
+        const resultObj = result as Record<string, any>
+        if (resultObj.title && typeof resultObj.title === 'string') {
+          const cleanCase: ExtractedCase = {
+            title: resultObj.title,
+            description: resultObj.description || '',
+            proofRequired: resultObj.proofRequired || false,
+            eligibilityPreview: resultObj.eligibilityPreview,
+            eligibilityFull: resultObj.eligibilityFull,
+            deadlineDate: resultObj.deadlineDate,
+            claimUrl: resultObj.claimUrl || url,
+            estimatedPayout: resultObj.estimatedPayout,
+            category: resultObj.category,
+            fullDescription: resultObj.fullDescription,
+            howToClaim: resultObj.howToClaim,
+            importantDates: resultObj.importantDates,
+            contactInfo: resultObj.contactInfo,
+            faqs: resultObj.faqs,
+            documentationRequired: resultObj.documentationRequired,
+            claimFormUrl: resultObj.claimFormUrl,
+            externalRedirect: resultObj.externalRedirect,
+            rawText: pageText.substring(0, 1000)
+          }
+          return cleanCase
         }
       }
 
