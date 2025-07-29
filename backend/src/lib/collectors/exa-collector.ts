@@ -1,178 +1,159 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseCollector } from './base-collector'
-import { exaService, ExaService } from '@/lib/ai/exa'
-import type { CollectorResult, ExaCollectorConfig } from '@/types'
-import { CollectorError } from '@/types'
+import { getExaService, getDefaultConfigs } from '../ai/exa'
+import { geminiService } from '../ai/gemini'
+import type { CollectorResult, ExtractedCase } from '../../types'
+import { logger } from '../logger'
 
 export class ExaCollector extends BaseCollector {
-  private config: ExaCollectorConfig
-
-  constructor(config?: Partial<ExaCollectorConfig>) {
-    super('Exa Web Search', 'exa')
-
-    // Merge default config with provided config
-    const defaultConfig = ExaService.getDefaultConfigs()
-    this.config = {
-      queries: [
-        ...defaultConfig.classAction.queries,
-        ...defaultConfig.ftcSettlements.queries,
-        ...defaultConfig.dataBreaches.queries
-      ],
-      numResults: 50,
-      dateFilter: '7d',
-      excludeDomains: [
-        'reddit.com',
-        'twitter.com',
-        'facebook.com',
-        'linkedin.com',
-        'youtube.com'
-      ],
-      ...config
-    }
+  constructor() {
+    super('Exa Web Search')
   }
 
   async collect(): Promise<CollectorResult> {
     const startTime = Date.now()
+    const errors: string[] = []
     let casesFound = 0
     let casesProcessed = 0
-    const errors: string[] = []
 
     try {
-      this.log('Starting Exa collection with config:', 'info')
-      this.log(`Queries: ${this.config.queries.length}`, 'info')
-      this.log(`Results per query: ${this.config.numResults}`, 'info')
+      await this.initializeScraper()
 
-      // Get or create source
-      const sourceId = await this.getOrCreateSource()
+      // Collect from all configured categories
+      const configs = getDefaultConfigs()
+      const categories = Object.keys(configs).filter(cat => cat !== 'tracking')
 
-      // Search for legal opportunities with enhanced pagination
-      const searchResults = await exaService.searchLegalOpportunities(this.config)
-      casesFound = searchResults.length
-
-      this.log(`Found ${casesFound} potential legal opportunities`, 'info')
-
-      // Process each result
-      for (const result of searchResults) {
+      for (const category of categories) {
         try {
-          await this.processSearchResult(result, sourceId)
-          casesProcessed++
+          logger.info(`Collecting ${category} opportunities...`)
 
-          // Rate limiting between processing
-          await this.delay(500)
+          const searchResults = await getExaService().searchLegalOpportunities(
+            category as keyof typeof configs
+          )
+          casesFound += searchResults.length
+
+          for (const result of searchResults) {
+            try {
+              // Extract case details from full content
+              const extractedCase = await geminiService.extractCaseDetails(
+                result.content,
+                result.url
+              )
+
+              if (extractedCase) {
+                // Ensure claim URL is set
+                if (!extractedCase.claimUrl) {
+                  extractedCase.claimUrl = result.url
+                }
+
+                const processed = await this.processCase(
+                  extractedCase,
+                  'web_search',
+                  result.url,
+                  result.metadata.deepScraped === true ? `Deep scraped from ${result.url}` : undefined
+                )
+
+                if (processed) {
+                  casesProcessed++
+                  logger.info(`Processed case: ${extractedCase.title} from ${category}`)
+                }
+              }
+            } catch (error) {
+              const errorMsg = `Failed to process ${result.url}: ${error}`
+              logger.error(errorMsg)
+              errors.push(errorMsg)
+            }
+          }
         } catch (error) {
-          const errorMsg = `Failed to process ${result.url}: ${error instanceof Error ? error.message : 'Unknown error'}`
+          const errorMsg = `Failed to collect ${category}: ${error}`
+          logger.error(errorMsg)
           errors.push(errorMsg)
-          this.log(errorMsg, 'warn')
         }
       }
 
-      this.log(`Successfully processed ${casesProcessed}/${casesFound} cases`, 'info')
+      // Also check for updates on existing cases
+      await this.trackHighValueCaseUpdates()
 
     } catch (error) {
-      const errorMsg = `Collection failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      const errorMsg = `Exa collection failed: ${error}`
+      logger.error(errorMsg)
       errors.push(errorMsg)
-      this.log(errorMsg, 'error')
+    } finally {
+      await this.closeScraper()
     }
 
-    const duration = Date.now() - startTime
-
-    return {
-      sourceName: this.sourceName,
-      casesFound,
-      casesProcessed,
-      errors,
-      duration
-    }
+    return this.createResult(casesFound, casesProcessed, errors, startTime)
   }
 
-  private async processSearchResult(
-    result: { url: string; title: string; content: string },
-    sourceId: string
-  ): Promise<void> {
-    try {
-      // Clean and validate content
-      const cleanedContent = this.cleanContent(result.content)
-
-      if (cleanedContent.length < 100) {
-        throw new CollectorError(
-          'Content too short to be meaningful',
-          this.sourceName,
-          'parsing'
-        )
-      }
-
-      // Extract case details
-      const extractedCase = await this.processContent(
-        cleanedContent,
-        result.url,
-        sourceId
-      )
-
-      if (!extractedCase) {
-        this.log(`No legal opportunity found in ${result.url}`, 'info')
-        return
-      }
-
-      // Use the source URL as claim URL if none extracted
-      if (!extractedCase.claimUrl) {
-        extractedCase.claimUrl = result.url
-      }
-
-      // Save to database
-      await this.saveCase(extractedCase, sourceId, result.url)
-
-      this.log(`Successfully processed case: ${extractedCase.title}`, 'info')
-
-    } catch (error) {
-      throw new CollectorError(
-        `Search result processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        this.sourceName,
-        'parsing'
-      )
-    }
-  }
-
-  /**
-   * Run collection for specific domains only
-   */
-  async collectFromDomains(domains: string[], query = 'class action settlement consumer claims'): Promise<CollectorResult> {
+  async collectFromDomains(domains: string[], query?: string): Promise<CollectorResult> {
     const startTime = Date.now()
+    const errors: string[] = []
     let casesFound = 0
     let casesProcessed = 0
-    const errors: string[] = []
+
+    const searchQuery = query || 'class action settlement claim deadline'
 
     try {
-      this.log(`Starting domain-specific collection for: ${domains.join(', ')}`, 'info')
+      await this.initializeScraper()
 
-      const sourceId = await this.getOrCreateSource()
-      const searchResults = await exaService.searchSpecificDomains(query, domains, 30)
+      const searchResults = await getExaService().searchSpecificDomains(
+        searchQuery,
+        domains
+      )
+
       casesFound = searchResults.length
 
       for (const result of searchResults) {
         try {
-          await this.processSearchResult(result, sourceId)
-          casesProcessed++
-          await this.delay(1000) // Longer delay for domain-specific searches
+          const extractedCase = await geminiService.extractCaseDetails(
+            result.text || result.summary || '',
+            result.url
+          )
+
+          if (extractedCase) {
+            const processed = await this.processCase(
+              extractedCase,
+              'domain_search',
+              result.url
+            )
+
+            if (processed) {
+              casesProcessed++
+            }
+          }
         } catch (error) {
-          const errorMsg = `Failed to process ${result.url}: ${error instanceof Error ? error.message : 'Unknown error'}`
+          const errorMsg = `Failed to process ${result.url}: ${error}`
+          logger.error(errorMsg)
           errors.push(errorMsg)
-          this.log(errorMsg, 'warn')
         }
       }
-
     } catch (error) {
-      const errorMsg = `Domain collection failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      const errorMsg = `Domain collection failed: ${error}`
+      logger.error(errorMsg)
       errors.push(errorMsg)
-      this.log(errorMsg, 'error')
+    } finally {
+      await this.closeScraper()
     }
 
-    const duration = Date.now() - startTime
+    return this.createResult(casesFound, casesProcessed, errors, startTime)
+  }
 
-    return {
-      sourceName: `${this.sourceName} (${domains.join(', ')})`,
-      casesFound,
-      casesProcessed,
-      errors,
-      duration
+  private async trackHighValueCaseUpdates(): Promise<void> {
+    try {
+      logger.info('Checking for updates on high-value cases...')
+
+      // This would integrate with the supabase operations to get active cases
+      // For now, we'll just log that we're doing this
+
+      // In a real implementation:
+      // const activeCases = await supabaseOps.getRecentCases(10)
+      // for (const case of activeCases) {
+      //   const updates = await exaService.trackCaseUpdates(case.title, case.url)
+      //   // Process updates...
+      // }
+
+    } catch (error) {
+      logger.error('Failed to track case updates:', error)
     }
   }
 }

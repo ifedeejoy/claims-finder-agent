@@ -9,7 +9,9 @@
     "start": "node dist/server-simple.js",
     "start:prod": "NODE_ENV=production node dist/server-simple.js",
     "test": "tsx src/test-collectors.ts",
-    "setup": "bash setup.sh"
+    "setup": "bash setup.sh",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean"
   },
   "dependencies": {
     "@bull-board/api": "^5.14.0",

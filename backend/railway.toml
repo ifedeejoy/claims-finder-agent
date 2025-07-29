@@ -1,47 +1,49 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm run build"
+builder = "nixpacks"
+buildCommand = "npm install && npm run build"
 
 [deploy]
-startCommand = "npm run start"
-healthcheckPath = "/api/health"
-healthcheckTimeout = 30
-restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 3
+startCommand = "npm start"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
 
-[nixpacks]
-providers = ["node", "npm"]
-node = "20.x"
+[environments.production]
+NODE_ENV = "production"
+PORT = 3001
 
-[nixpacks.phases.install]
-cmds = ["npm install --production=false"]
+# Redis configuration - Railway will provide REDIS_URL automatically
+# when you add Redis service to your project
 
-[nixpacks.phases.build]
-cmds = ["npm run build"]
+# Required environment variables (add these in Railway dashboard):
+# GEMINI_API_KEY = "your-gemini-api-key"
+# EXA_API_KEY = "your-exa-api-key"
+# SUPABASE_URL = "your-supabase-url"
+# SUPABASE_SERVICE_ROLE_KEY = "your-supabase-service-role-key"
+# REDIS_URL = "redis://..." (auto-provided by Railway Redis)
 
-[[services]]
-name = "claim-finder-backend"
-type = "web"
+# Optional:
+# ENABLE_CRON = "true"
+# WEBHOOK_URL = "https://your-frontend.vercel.app/api/webhooks/collector"
+
+[healthcheck]
 port = 3001
+path = "/api/health"
+interval = 30
+timeout = 5
+attempts = 3
+wait = 10
+initialDelay = 10
 
-[[services.env]]
-name = "NODE_ENV"
-value = "production"
+# Disable sleeping (keep service always active)
+[service]
+internalPort = 3001
+enableSleeping = false
 
-[[services.env]]
-name = "PORT"
-value = "3001"
+# Resource limits (adjust based on your Railway plan)
+[resources]
+memory = "512MB"
+cpu = "0.5"
 
-# AI-guided orchestrator configuration
-[[services.env]]
-name = "AI_ORCHESTRATION_ENABLED"
-value = "true"
-
-[[services.env]]
-name = "COLLECTION_STRATEGY"
-value = "targeted"
-
-# Rate limiting for external APIs
-[[services.env]]
-name = "RATE_LIMIT_DELAY_MS"
-value = "1000" 
+# Networking
+[network]
+port = 3001 

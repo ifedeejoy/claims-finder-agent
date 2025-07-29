@@ -1,5 +1,5 @@
 import type { CollectorResult, ExtractedCase, EligibilityQuestion } from '../../types'
-import { supabaseOps } from '../supabase/operations'
+import { db } from '../supabase/operations'
 import { logger } from '../logger'
 import { PlaywrightScraper } from './playwright-scraper'
 
@@ -9,6 +9,20 @@ export abstract class BaseCollector {
   constructor(protected sourceName: string) { }
 
   abstract collect(): Promise<CollectorResult>
+
+  protected log(message: string, level: 'info' | 'error' | 'warn' = 'info') {
+    const prefix = `[${this.sourceName}]`
+    switch (level) {
+      case 'error':
+        logger.error(`${prefix} ${message}`)
+        break
+      case 'warn':
+        logger.warn(`${prefix} ${message}`)
+        break
+      default:
+        logger.info(`${prefix} ${message}`)
+    }
+  }
 
   protected async initializeScraper() {
     if (!this.scraper) {
@@ -24,6 +38,31 @@ export abstract class BaseCollector {
     }
   }
 
+  protected async getOrCreateSource(name: string, type: string, url: string): Promise<string> {
+    try {
+      // Check if source exists
+      const existing = await db.findSourceByName(name)
+      if (existing) {
+        return existing.id
+      }
+
+      // Create new source
+      const newSource = await db.createSource({
+        name,
+        type: type as 'exa' | 'sec' | 'ftc' | 'native',
+        url,
+        lastChecked: new Date(),
+        isActive: true,
+        config: {}
+      })
+
+      return newSource.id
+    } catch (error) {
+      this.log(`Failed to get or create source: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+      throw error
+    }
+  }
+
   protected async processCase(
     extractedCase: ExtractedCase & { questions?: EligibilityQuestion[] },
     sourceType: string,
@@ -32,18 +71,17 @@ export abstract class BaseCollector {
   ): Promise<boolean> {
     try {
       // Get or create source
-      const sourceId = await supabaseOps.getOrCreateSource(
+      const sourceId = await this.getOrCreateSource(
         this.sourceName,
         sourceType,
         sourceUrl
       )
 
       // Save the case with all enhanced details
-      await supabaseOps.saveCase(
+      await db.upsertCase(
         extractedCase,
         sourceId,
-        sourceUrl,
-        screenshotUrl
+        extractedCase.claimUrl || sourceUrl
       )
 
       return true

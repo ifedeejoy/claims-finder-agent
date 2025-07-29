@@ -14,10 +14,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@collectors/*": ["./src/collectors/*"],
+      "@collectors/*": ["./src/lib/collectors/*"],
       "@lib/*": ["./src/lib/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
-} 
+}

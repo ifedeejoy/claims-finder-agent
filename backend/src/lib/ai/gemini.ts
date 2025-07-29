@@ -276,6 +276,30 @@ Return a JSON object:
   }
 
   /**
+   * Helper method to extract JSON from AI responses that might be wrapped in markdown
+   */
+  private extractJSON(responseText: string): any {
+    try {
+      // First try to extract from markdown code blocks
+      const jsonMatch = responseText.match(/```(?:json)?\n?([\s\S]*?)\n?```/)
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[1])
+      }
+
+      // Then try to find a JSON object
+      const objectMatch = responseText.match(/{[\s\S]*}/)
+      if (objectMatch) {
+        return JSON.parse(objectMatch[0])
+      }
+
+      // Finally try parsing the whole response
+      return JSON.parse(responseText)
+    } catch (error) {
+      throw new Error(`Failed to extract JSON from response: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
    * Generic content generation for flexible AI tasks
    */
   async generateContent(prompt: string): Promise<{ response: { text: () => string } }> {
@@ -289,6 +313,20 @@ Return a JSON object:
       }
     } catch (error) {
       throw new Error(`Content generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * Generate JSON content from a prompt
+   */
+  async generateJSON(prompt: string): Promise<any> {
+    try {
+      const { model: geminiModel } = initializeGemini()
+      const result = await geminiModel.generateContent(prompt)
+      const responseText = result.response.text()
+      return this.extractJSON(responseText)
+    } catch (error) {
+      throw new Error(`JSON generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
